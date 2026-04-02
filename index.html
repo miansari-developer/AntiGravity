@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Photon - Next-Gen Image Compressor</title>
+  <!-- Use Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+
+<body>
+  <!-- Background Elements -->
+  <div class="bg-pattern"></div>
+  <div class="bg-orb left-orb"></div>
+  <div class="bg-orb right-orb"></div>
+
+  <main class="app-container glass-panel">
+    <header class="app-header">
+      <h1 class="glow-text">Photon</h1>
+      <p class="subtitle">Next-Gen Image Compression</p>
+    </header>
+
+    <section class="upload-section" id="upload-zone">
+      <input type="file" id="file-input" accept="image/*" hidden />
+      <div class="upload-content">
+        <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+        <p>Drag & Drop an image or <span class="highlight">Browse</span></p>
+      </div>
+    </section>
+
+    <section class="workspace hidden" id="workspace">
+      <div class="controls-panel glass-card">
+        <h3>Compression Settings</h3>
+
+        <div class="control-group">
+          <div class="control-header">
+            <label for="quality-slider">Quality (<span id="quality-val">80</span>%)</label>
+          </div>
+          <input type="range" id="quality-slider" min="1" max="100" value="80" class="neon-slider">
+        </div>
+
+        <div class="control-group">
+          <div class="control-header"
+            style="align-items: center; display: flex; justify-content: space-between; margin-bottom: 12px;">
+            <label style="margin: 0;">Dimensions Unit</label>
+            <select id="dimension-unit" class="neon-select" style="width: 80px; padding: 4px 8px;">
+              <option value="px">px</option>
+              <option value="%">%</option>
+              <option value="in">in</option>
+              <option value="cm">cm</option>
+            </select>
+          </div>
+          <div class="dimensions-row">
+            <div class="input-wrapper">
+              <label for="max-width">Width</label>
+              <input type="number" id="max-width" placeholder="Auto" class="neon-input">
+            </div>
+
+            <div class="lock-wrapper">
+              <button id="lock-ratio-btn" class="btn-icon active" title="Lock proportions">
+                <svg id="lock-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <svg id="unlock-icon" style="display:none;" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+                </svg>
+              </button>
+            </div>
+
+            <div class="input-wrapper">
+              <label for="max-height">Height</label>
+              <input type="number" id="max-height" placeholder="Auto" class="neon-input">
+            </div>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label for="format-select">Format</label>
+          <select id="format-select" class="neon-select">
+            <option value="image/jpeg" selected>JPEG</option>
+            <option value="image/webp">WebP</option>
+            <option value="image/png">PNG (Lossless)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="preview-panel glass-card">
+        <div class="stages">
+          <div class="stage original-stage">
+            <span class="badge">Original</span>
+            <div class="img-wrapper">
+              <img id="original-preview" src="" alt="Original Preview" />
+            </div>
+            <div class="stats-row">
+              <div class="size-badge" id="original-size">--</div>
+              <div class="dim-badge" id="original-dim">--</div>
+            </div>
+          </div>
+          <div class="stage compressed-stage">
+            <span class="badge neon-badge">Compressed</span>
+            <div class="img-wrapper">
+              <img id="compressed-preview" src="" alt="Compressed Preview" />
+              <div class="glass-overlay loading-overlay hidden" id="loading-overlay">
+                <div class="spinner"></div>
+              </div>
+            </div>
+            <div class="stats-row">
+              <div class="size-badge neon-size" id="compressed-size" data-reduction="0%">--</div>
+              <div class="dim-badge" id="compressed-dim">--</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="action-footer">
+          <button class="btn btn-secondary" id="reset-btn">Reset</button>
+          <button class="btn btn-primary glow-btn" id="download-btn">
+            Download Image
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              style="margin-left: 8px;">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>
