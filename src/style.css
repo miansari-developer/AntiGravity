@@ -281,6 +281,17 @@ h1.glow-text {
   transition: var(--transition);
 }
 
+/* Hide number input spinners */
+.neon-input[type="number"]::-webkit-inner-spin-button, 
+.neon-input[type="number"]::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
+.neon-input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 .neon-input:focus, .neon-select:focus {
   outline: none;
   border-color: var(--accent-neon-blue);

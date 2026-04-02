@@ -167,6 +167,13 @@ function init() {
     scheduleCompression();
   });
 
+  const preventArrows = (e) => {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+    }
+  };
+  elements.maxWidth.addEventListener('keydown', preventArrows);
+  elements.maxHeight.addEventListener('keydown', preventArrows);
 
   elements.resetBtn.addEventListener('click', resetApp);
   elements.downloadBtn.addEventListener('click', downloadCompressedImage);
