@@ -1,6 +1,13 @@
+import Cropper from 'cropperjs';
+import 'cropperjs/dist/cropper.css';
+
 // State
 let originalFile = null;
 let originalObjectURL = null;
+let absoluteOriginalFile = null;
+let absoluteOriginalObjectURL = null;
+let lastCropData = null;
+let lastAspectRatio = NaN;
 let compressedBlob = null;
 let compressedObjectURL = null;
 let compressionTimeout = null;
@@ -8,6 +15,7 @@ let imageAspectRatio = 1;
 let isRatioLocked = true;
 let originalDims = { width: 0, height: 0 };
 let currentUnit = 'px';
+let cropperInstance = null;
 
 // DOM Elements
 const elements = {
@@ -36,7 +44,24 @@ const elements = {
   loadingOverlay: document.getElementById('loading-overlay'),
 
   resetBtn: document.getElementById('reset-btn'),
-  downloadBtn: document.getElementById('download-btn')
+  downloadBtn: document.getElementById('download-btn'),
+  cropBtn: document.getElementById('crop-btn'),
+  cropModal: document.getElementById('crop-modal'),
+  cropImageTarget: document.getElementById('crop-image-target'),
+  cancelCropBtn: document.getElementById('cancel-crop-btn'),
+  applyCropBtn: document.getElementById('apply-crop-btn'),
+
+  textEnable: document.getElementById('text-enable'),
+  textControls: document.getElementById('text-controls'),
+  textContent: document.getElementById('text-content'),
+  textSize: document.getElementById('text-size'),
+  textFont: document.getElementById('text-font'),
+  textColor: document.getElementById('text-color'),
+  textBgColor: document.getElementById('text-bg-color'),
+  textPosition: document.getElementById('text-position'),
+  themeToggle: document.getElementById('theme-toggle'),
+  themeIconLight: document.getElementById('theme-icon-light'),
+  themeIconDark: document.getElementById('theme-icon-dark')
 };
 
 // Utilities
@@ -72,6 +97,8 @@ function formatDimensionString(pxWidth, pxHeight, unit, origW, origH) {
 
 // Event Listeners
 function init() {
+  initTheme();
+  
   // Drag and Drop
   elements.uploadZone.addEventListener('click', () => elements.fileInput.click());
 
@@ -177,9 +204,89 @@ function init() {
 
   elements.resetBtn.addEventListener('click', resetApp);
   elements.downloadBtn.addEventListener('click', downloadCompressedImage);
+  elements.cropBtn.addEventListener('click', openCropModal);
+  elements.cancelCropBtn.addEventListener('click', closeCropModal);
+  elements.applyCropBtn.addEventListener('click', applyCrop);
+
+  document.querySelectorAll('.aspect-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.aspect-btn').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      const ratio = parseFloat(e.target.getAttribute('data-ratio'));
+      lastAspectRatio = isNaN(ratio) ? NaN : ratio;
+      if (cropperInstance) {
+        cropperInstance.setAspectRatio(lastAspectRatio);
+      }
+    });
+  });
+
+  document.querySelector('.swap-aspect-btn')?.addEventListener('click', () => {
+    if (isNaN(lastAspectRatio) || lastAspectRatio === 1) return; // Ignore for Free and 1:1
+    
+    lastAspectRatio = 1 / lastAspectRatio;
+    
+    // Remove active class from preset ratio buttons since we inverted
+    document.querySelectorAll('.aspect-btn').forEach(b => b.classList.remove('active'));
+    
+    if (cropperInstance) {
+      cropperInstance.setAspectRatio(lastAspectRatio);
+    }
+  });
+
+  document.querySelectorAll('.rotate-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const targetBtn = e.target.closest('.rotate-btn');
+      if (!targetBtn) return;
+      const deg = parseFloat(targetBtn.getAttribute('data-deg'));
+      if (cropperInstance) {
+        cropperInstance.rotate(deg);
+      }
+    });
+  });
+
+  elements.textEnable.addEventListener('change', (e) => {
+    if (e.target.checked) {
+      elements.textControls.classList.remove('hidden');
+    } else {
+      elements.textControls.classList.add('hidden');
+    }
+    scheduleCompression();
+  });
+
+  [
+    elements.textContent, elements.textSize, elements.textFont,
+    elements.textColor, elements.textBgColor, elements.textPosition
+  ].forEach(el => el.addEventListener('input', scheduleCompression));
+  
+  elements.textPosition.addEventListener('change', scheduleCompression);
+  elements.themeToggle.addEventListener('click', toggleTheme);
 }
 
 // Logic
+function initTheme() {
+  const savedTheme = localStorage.getItem('app-theme') || 'dark';
+  applyTheme(savedTheme);
+}
+
+function toggleTheme() {
+  const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+  const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  applyTheme(newTheme);
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('app-theme', theme);
+  
+  if (theme === 'dark') {
+    elements.themeIconDark.style.display = 'none';
+    elements.themeIconLight.style.display = 'block';
+  } else {
+    elements.themeIconDark.style.display = 'block';
+    elements.themeIconLight.style.display = 'none';
+  }
+}
+
 function updatePlaceholders() {
   if (!originalDims.width) return;
   const getPlaceholder = (pxDim) => {
@@ -200,9 +307,13 @@ function handleFileSelect(file) {
   }
 
   originalFile = file;
+  absoluteOriginalFile = file;
 
   if (originalObjectURL) URL.revokeObjectURL(originalObjectURL);
   originalObjectURL = URL.createObjectURL(file);
+
+  if (absoluteOriginalObjectURL) URL.revokeObjectURL(absoluteOriginalObjectURL);
+  absoluteOriginalObjectURL = URL.createObjectURL(file);
 
   elements.originalPreview.src = originalObjectURL;
   elements.originalSize.textContent = formatBytes(file.size);
@@ -223,6 +334,82 @@ function handleFileSelect(file) {
     compressImage();
   };
   img.src = originalObjectURL;
+}
+
+function openCropModal() {
+  if (!absoluteOriginalObjectURL) return;
+  elements.cropModal.classList.remove('hidden');
+  
+  if (cropperInstance) {
+    cropperInstance.destroy();
+  }
+  
+  elements.cropImageTarget.src = absoluteOriginalObjectURL;
+
+  // Restore the active state on the ratio buttons
+  document.querySelectorAll('.aspect-btn').forEach(b => {
+    const r = parseFloat(b.getAttribute('data-ratio'));
+    if ((isNaN(r) && isNaN(lastAspectRatio)) || r === lastAspectRatio) {
+      b.classList.add('active');
+    } else {
+      b.classList.remove('active');
+    }
+  });
+  
+  // Initialize Cropper inside a timeout to ensure modal is visible and dimensions are established
+  setTimeout(() => {
+    cropperInstance = new Cropper(elements.cropImageTarget, {
+      viewMode: 1,
+      aspectRatio: lastAspectRatio,
+      autoCropArea: 0.8,
+      background: false,
+      ready() {
+        if (lastCropData) {
+          cropperInstance.rotateTo(lastCropData.rotate || 0);
+          cropperInstance.setData(lastCropData);
+        }
+      }
+    });
+  }, 10);
+}
+
+function closeCropModal() {
+  elements.cropModal.classList.add('hidden');
+  if (cropperInstance) {
+    cropperInstance.destroy();
+    cropperInstance = null;
+  }
+}
+
+function applyCrop() {
+  if (!cropperInstance) return;
+  
+  lastCropData = cropperInstance.getData();
+  
+  const canvas = cropperInstance.getCroppedCanvas();
+  if (!canvas) return;
+  
+  // Re-export cropped canvas to blob using the same mime type, default to jpeg
+  const outputMime = originalFile.type || 'image/jpeg';
+  canvas.toBlob((blob) => {
+    // Treat the cropped blob as the new original file
+    originalFile = new File([blob], originalFile.name || 'cropped-image', { type: outputMime });
+    
+    if (originalObjectURL) URL.revokeObjectURL(originalObjectURL);
+    originalObjectURL = URL.createObjectURL(blob);
+    
+    elements.originalPreview.src = originalObjectURL;
+    elements.originalSize.textContent = formatBytes(blob.size);
+    
+    imageAspectRatio = canvas.width / canvas.height;
+    originalDims = { width: canvas.width, height: canvas.height };
+    
+    updatePlaceholders();
+    elements.originalDim.textContent = formatDimensionString(canvas.width, canvas.height, currentUnit, originalDims.width, originalDims.height);
+    
+    closeCropModal();
+    scheduleCompression();
+  }, outputMime, 1);
 }
 
 function syncDimensions(source) {
@@ -302,6 +489,73 @@ async function compressImage() {
   const ctx = canvas.getContext('2d');
   ctx.drawImage(img, 0, 0, width, height);
 
+  // Apply Text Overlay   
+  if (elements.textEnable.checked && elements.textContent.value.trim() !== '') {
+    const rawText = elements.textContent.value;
+    const lines = rawText.split('\n');
+
+    const size = parseInt(elements.textSize.value) || 48;
+    const font = elements.textFont.value;
+    const color = elements.textColor.value;
+    const bgColor = elements.textBgColor.value;
+    const position = elements.textPosition.value;
+
+    ctx.font = `600 ${size}px "${font}", sans-serif`;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+
+    const padding = size * 0.4;
+    const lineHeight = size * 1.2;
+
+    let maxTextWidth = 0;
+    lines.forEach(line => {
+      const metrics = ctx.measureText(line);
+      if (metrics.width > maxTextWidth) maxTextWidth = metrics.width;
+    });
+
+    const textHeight = size;
+    const boxWidth = maxTextWidth + padding * 2;
+    const boxHeight = (lines.length - 1) * lineHeight + textHeight + padding * 2;
+
+    let x = 0;
+    let y = 0;
+    const margin = size * 0.5;
+
+    // Calculate X
+    if (position.includes('left')) x = margin;
+    else if (position.includes('center')) x = (width - boxWidth) / 2;
+    else if (position.includes('right')) x = width - boxWidth - margin;
+
+    // Calculate Y
+    if (position.includes('top')) y = margin;
+    else if (position === 'center' || position.includes('center-')) y = (height - boxHeight) / 2;
+    else if (position.includes('bottom')) y = height - boxHeight - margin;
+
+    // Build Background
+    if (bgColor !== 'transparent') {
+      ctx.fillStyle = bgColor;
+      ctx.globalAlpha = 0.85;
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(x, y, boxWidth, boxHeight, 8);
+      } else {
+        ctx.rect(x, y, boxWidth, boxHeight);
+      }
+      ctx.fill();
+      ctx.globalAlpha = 1.0;
+    }
+
+    // Paint Text
+    ctx.fillStyle = color;
+    const centerX = x + boxWidth / 2;
+    let currentY = y + padding + (size / 2);
+
+    lines.forEach(line => {
+      ctx.fillText(line, centerX, currentY);
+      currentY += lineHeight;
+    });
+  }
+
   // Export to blob
   canvas.toBlob(
     (blob) => {
@@ -372,9 +626,13 @@ function downloadCompressedImage() {
 
 function resetApp() {
   originalFile = null;
+  absoluteOriginalFile = null;
   compressedBlob = null;
+  lastCropData = null;
+  lastAspectRatio = NaN;
 
   if (originalObjectURL) URL.revokeObjectURL(originalObjectURL);
+  if (absoluteOriginalObjectURL) URL.revokeObjectURL(absoluteOriginalObjectURL);
   if (compressedObjectURL) URL.revokeObjectURL(compressedObjectURL);
 
   elements.uploadZone.style.display = 'block';
@@ -394,6 +652,8 @@ function resetApp() {
   elements.maxHeight.value = '';
 
   elements.fileInput.value = '';
+  
+  closeCropModal();
 }
 
 // Bootstrap
