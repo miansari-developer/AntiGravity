@@ -98,7 +98,7 @@ function formatDimensionString(pxWidth, pxHeight, unit, origW, origH) {
 // Event Listeners
 function init() {
   initTheme();
-  
+
   // Drag and Drop
   elements.uploadZone.addEventListener('click', () => elements.fileInput.click());
 
@@ -152,21 +152,21 @@ function init() {
   elements.dimensionUnit.addEventListener('change', (e) => {
     const newUnit = e.target.value;
     if (newUnit === currentUnit) return;
-    
+
     const convertValue = (val, fromUnit, toUnit, maxDim) => {
       if (!val || isNaN(val)) return '';
       let pxOrig = val;
       if (fromUnit === '%') pxOrig = maxDim * (val / 100);
       else if (fromUnit === 'in') pxOrig = val * 96;
       else if (fromUnit === 'cm') pxOrig = val * (96 / 2.54);
-      
+
       if (toUnit === 'px') return Math.round(pxOrig);
       if (toUnit === '%') return +(pxOrig / maxDim * 100).toFixed(2);
       if (toUnit === 'in') return +(pxOrig / 96).toFixed(2);
       if (toUnit === 'cm') return +(pxOrig / (96 / 2.54)).toFixed(2);
       return val;
     };
-    
+
     if (elements.maxWidth.value) {
       elements.maxWidth.value = convertValue(parseFloat(elements.maxWidth.value), currentUnit, newUnit, originalDims.width);
     }
@@ -176,19 +176,19 @@ function init() {
 
     currentUnit = newUnit;
     updatePlaceholders();
-    
+
     if (originalDims.width) {
       elements.originalDim.textContent = formatDimensionString(originalDims.width, originalDims.height, currentUnit, originalDims.width, originalDims.height);
     }
-    
+
     scheduleCompression();
   });
-  
+
   elements.maxWidth.addEventListener('input', () => {
     if (isRatioLocked) syncDimensions('width');
     scheduleCompression();
   });
-  
+
   elements.maxHeight.addEventListener('input', () => {
     if (isRatioLocked) syncDimensions('height');
     scheduleCompression();
@@ -222,12 +222,12 @@ function init() {
 
   document.querySelector('.swap-aspect-btn')?.addEventListener('click', () => {
     if (isNaN(lastAspectRatio) || lastAspectRatio === 1) return; // Ignore for Free and 1:1
-    
+
     lastAspectRatio = 1 / lastAspectRatio;
-    
+
     // Remove active class from preset ratio buttons since we inverted
     document.querySelectorAll('.aspect-btn').forEach(b => b.classList.remove('active'));
-    
+
     if (cropperInstance) {
       cropperInstance.setAspectRatio(lastAspectRatio);
     }
@@ -257,7 +257,7 @@ function init() {
     elements.textContent, elements.textSize, elements.textFont,
     elements.textColor, elements.textBgColor, elements.textPosition
   ].forEach(el => el.addEventListener('input', scheduleCompression));
-  
+
   elements.textPosition.addEventListener('change', scheduleCompression);
   elements.themeToggle.addEventListener('click', toggleTheme);
 }
@@ -277,25 +277,25 @@ function toggleTheme() {
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   localStorage.setItem('app-theme', theme);
-  
+
   if (theme === 'dark') {
-    elements.themeIconDark.style.display = 'none';
-    elements.themeIconLight.style.display = 'block';
-  } else {
     elements.themeIconDark.style.display = 'block';
     elements.themeIconLight.style.display = 'none';
+  } else {
+    elements.themeIconDark.style.display = 'none';
+    elements.themeIconLight.style.display = 'block';
   }
 }
 
 function updatePlaceholders() {
   if (!originalDims.width) return;
   const getPlaceholder = (pxDim) => {
-     if (currentUnit === 'px') return Math.round(pxDim);
-     if (currentUnit === '%') return 100;
-     if (currentUnit === 'in') return +(pxDim / 96).toFixed(2);
-     if (currentUnit === 'cm') return +(pxDim / (96 / 2.54)).toFixed(2);
+    if (currentUnit === 'px') return Math.round(pxDim);
+    if (currentUnit === '%') return 100;
+    if (currentUnit === 'in') return +(pxDim / 96).toFixed(2);
+    if (currentUnit === 'cm') return +(pxDim / (96 / 2.54)).toFixed(2);
   };
-  
+
   elements.maxWidth.placeholder = getPlaceholder(originalDims.width);
   elements.maxHeight.placeholder = getPlaceholder(originalDims.height);
 }
@@ -322,10 +322,10 @@ function handleFileSelect(file) {
   img.onload = () => {
     imageAspectRatio = img.width / img.height;
     originalDims = { width: img.width, height: img.height };
-    
+
     currentUnit = elements.dimensionUnit.value;
     updatePlaceholders();
-    
+
     elements.originalDim.textContent = formatDimensionString(img.width, img.height, currentUnit, originalDims.width, originalDims.height);
 
     // Transition to workspace
@@ -339,11 +339,11 @@ function handleFileSelect(file) {
 function openCropModal() {
   if (!absoluteOriginalObjectURL) return;
   elements.cropModal.classList.remove('hidden');
-  
+
   if (cropperInstance) {
     cropperInstance.destroy();
   }
-  
+
   elements.cropImageTarget.src = absoluteOriginalObjectURL;
 
   // Restore the active state on the ratio buttons
@@ -355,7 +355,7 @@ function openCropModal() {
       b.classList.remove('active');
     }
   });
-  
+
   // Initialize Cropper inside a timeout to ensure modal is visible and dimensions are established
   setTimeout(() => {
     cropperInstance = new Cropper(elements.cropImageTarget, {
@@ -383,30 +383,30 @@ function closeCropModal() {
 
 function applyCrop() {
   if (!cropperInstance) return;
-  
+
   lastCropData = cropperInstance.getData();
-  
+
   const canvas = cropperInstance.getCroppedCanvas();
   if (!canvas) return;
-  
+
   // Re-export cropped canvas to blob using the same mime type, default to jpeg
   const outputMime = originalFile.type || 'image/jpeg';
   canvas.toBlob((blob) => {
     // Treat the cropped blob as the new original file
     originalFile = new File([blob], originalFile.name || 'cropped-image', { type: outputMime });
-    
+
     if (originalObjectURL) URL.revokeObjectURL(originalObjectURL);
     originalObjectURL = URL.createObjectURL(blob);
-    
+
     elements.originalPreview.src = originalObjectURL;
     elements.originalSize.textContent = formatBytes(blob.size);
-    
+
     imageAspectRatio = canvas.width / canvas.height;
     originalDims = { width: canvas.width, height: canvas.height };
-    
+
     updatePlaceholders();
     elements.originalDim.textContent = formatDimensionString(canvas.width, canvas.height, currentUnit, originalDims.width, originalDims.height);
-    
+
     closeCropModal();
     scheduleCompression();
   }, outputMime, 1);
@@ -415,13 +415,13 @@ function applyCrop() {
 function syncDimensions(source) {
   if (!imageAspectRatio) return;
   if (source === 'width') {
-     const w = parseFloat(elements.maxWidth.value);
-     if (!isNaN(w)) elements.maxHeight.value = +(w / imageAspectRatio).toFixed(2);
-     else elements.maxHeight.value = '';
+    const w = parseFloat(elements.maxWidth.value);
+    if (!isNaN(w)) elements.maxHeight.value = +(w / imageAspectRatio).toFixed(2);
+    else elements.maxHeight.value = '';
   } else {
-     const h = parseFloat(elements.maxHeight.value);
-     if (!isNaN(h)) elements.maxWidth.value = +(h * imageAspectRatio).toFixed(2);
-     else elements.maxWidth.value = '';
+    const h = parseFloat(elements.maxHeight.value);
+    if (!isNaN(h)) elements.maxWidth.value = +(h * imageAspectRatio).toFixed(2);
+    else elements.maxWidth.value = '';
   }
 }
 
@@ -652,7 +652,7 @@ function resetApp() {
   elements.maxHeight.value = '';
 
   elements.fileInput.value = '';
-  
+
   closeCropModal();
 }
 
