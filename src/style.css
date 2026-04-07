@@ -738,7 +738,8 @@ input:checked+.toggle-label:before {
   box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
 }
 
-#text-controls {
+#text-controls,
+#bg-controls {
   max-height: 500px;
   opacity: 1;
   overflow: hidden;
@@ -746,11 +747,36 @@ input:checked+.toggle-label:before {
   margin-top: 12px;
 }
 
-#text-controls.hidden {
+#text-controls.hidden,
+#bg-controls.hidden {
   max-height: 0;
   opacity: 0;
   margin-top: 0;
   pointer-events: none;
+}
+
+#bg-image-control.hidden {
+  display: none;
+}
+
+.privacy-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 240, 255, 0.05);
+  border: 1px solid rgba(0, 240, 255, 0.1);
+  color: var(--accent-neon-blue);
+  padding: 6px 12px;
+  border-radius: 30px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-top: 4px;
+  margin-bottom: 12px;
+  width: fit-content;
+}
+
+.privacy-badge svg {
+  opacity: 0.8;
 }
 
 /* Responsive */

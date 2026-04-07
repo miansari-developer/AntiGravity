@@ -1,5 +1,6 @@
 import Cropper from 'cropperjs';
 import 'cropperjs/dist/cropper.css';
+import { removeBackground } from '@imgly/background-removal';
 
 // State
 let originalFile = null;
@@ -16,6 +17,10 @@ let isRatioLocked = true;
 let originalDims = { width: 0, height: 0 };
 let currentUnit = 'px';
 let cropperInstance = null;
+let bgRemovedBlob = null;
+let bgRemovedObjectURL = null;
+let bgImageFile = null;
+let isRemovingBg = false;
 
 // DOM Elements
 const elements = {
@@ -59,6 +64,17 @@ const elements = {
   textColor: document.getElementById('text-color'),
   textBgColor: document.getElementById('text-bg-color'),
   textPosition: document.getElementById('text-position'),
+  
+  bgRemoveEnable: document.getElementById('bg-remove-enable'),
+  bgControls: document.getElementById('bg-controls'),
+  bgMode: document.getElementById('bg-mode'),
+  bgColorControl: document.getElementById('bg-color-control'),
+  bgColorPicker: document.getElementById('bg-color-picker'),
+  bgImageControl: document.getElementById('bg-image-control'),
+  bgImageInput: document.getElementById('bg-image-input'),
+  bgImageBtn: document.getElementById('bg-image-btn'),
+  bgImageName: document.getElementById('bg-image-name'),
+  textPosition: document.getElementById('text-position'),
   themeToggle: document.getElementById('theme-toggle'),
   themeIconLight: document.getElementById('theme-icon-light'),
   themeIconDark: document.getElementById('theme-icon-dark')
@@ -91,6 +107,11 @@ function formatDimensionString(pxWidth, pxHeight, unit, origW, origH) {
     const cmW = +(pxWidth / (96 / 2.54)).toFixed(2);
     const cmH = +(pxHeight / (96 / 2.54)).toFixed(2);
     return `${cmW}cm x ${cmH}cm`;
+  }
+  if (unit === 'mm') {
+    const mmW = +(pxWidth / (96 / 25.4)).toFixed(1);
+    const mmH = +(pxHeight / (96 / 25.4)).toFixed(1);
+    return `${mmW}mm x ${mmH}mm`;
   }
   return '--';
 }
@@ -164,6 +185,7 @@ function init() {
       if (toUnit === '%') return +(pxOrig / maxDim * 100).toFixed(2);
       if (toUnit === 'in') return +(pxOrig / 96).toFixed(2);
       if (toUnit === 'cm') return +(pxOrig / (96 / 2.54)).toFixed(2);
+      if (toUnit === 'mm') return +(pxOrig / (96 / 25.4)).toFixed(1);
       return val;
     };
 
@@ -259,6 +281,39 @@ function init() {
   ].forEach(el => el.addEventListener('input', scheduleCompression));
 
   elements.textPosition.addEventListener('change', scheduleCompression);
+
+  // Background Removal Listeners
+  elements.bgRemoveEnable.addEventListener('change', async (e) => {
+    if (e.target.checked) {
+      elements.bgControls.classList.remove('hidden');
+      if (originalFile && !bgRemovedBlob) {
+        await processBackgroundRemoval();
+      }
+    } else {
+      elements.bgControls.classList.add('hidden');
+    }
+    scheduleCompression();
+  });
+
+  elements.bgMode.addEventListener('change', (e) => {
+    const mode = e.target.value;
+    elements.bgColorControl.classList.add('hidden');
+    elements.bgImageControl.classList.add('hidden');
+    if (mode === 'color') elements.bgColorControl.classList.remove('hidden');
+    if (mode === 'image') elements.bgImageControl.classList.remove('hidden');
+    scheduleCompression();
+  });
+
+  elements.bgColorPicker.addEventListener('input', scheduleCompression);
+  elements.bgImageBtn.addEventListener('click', () => elements.bgImageInput.click());
+  elements.bgImageInput.addEventListener('change', (e) => {
+    if (e.target.files.length) {
+      bgImageFile = e.target.files[0];
+      elements.bgImageName.textContent = bgImageFile.name;
+      scheduleCompression();
+    }
+  });
+
   elements.themeToggle.addEventListener('click', toggleTheme);
 }
 
@@ -294,6 +349,7 @@ function updatePlaceholders() {
     if (currentUnit === '%') return 100;
     if (currentUnit === 'in') return +(pxDim / 96).toFixed(2);
     if (currentUnit === 'cm') return +(pxDim / (96 / 2.54)).toFixed(2);
+    if (currentUnit === 'mm') return +(pxDim / (96 / 25.4)).toFixed(1);
   };
 
   elements.maxWidth.placeholder = getPlaceholder(originalDims.width);
@@ -314,6 +370,9 @@ function handleFileSelect(file) {
 
   if (absoluteOriginalObjectURL) URL.revokeObjectURL(absoluteOriginalObjectURL);
   absoluteOriginalObjectURL = URL.createObjectURL(file);
+
+  bgRemovedBlob = null;
+  if (bgRemovedObjectURL) { URL.revokeObjectURL(bgRemovedObjectURL); bgRemovedObjectURL = null; }
 
   elements.originalPreview.src = originalObjectURL;
   elements.originalSize.textContent = formatBytes(file.size);
@@ -398,6 +457,9 @@ function applyCrop() {
     if (originalObjectURL) URL.revokeObjectURL(originalObjectURL);
     originalObjectURL = URL.createObjectURL(blob);
 
+    bgRemovedBlob = null;
+    if (bgRemovedObjectURL) { URL.revokeObjectURL(bgRemovedObjectURL); bgRemovedObjectURL = null; }
+
     elements.originalPreview.src = originalObjectURL;
     elements.originalSize.textContent = formatBytes(blob.size);
 
@@ -433,10 +495,35 @@ function scheduleCompression() {
   compressionTimeout = setTimeout(compressImage, 300);
 }
 
+async function processBackgroundRemoval() {
+  if (!originalFile) return;
+  isRemovingBg = true;
+  elements.loadingOverlay.classList.remove('hidden');
+
+  try {
+    const blob = await removeBackground(originalObjectURL);
+    bgRemovedBlob = blob;
+    if (bgRemovedObjectURL) URL.revokeObjectURL(bgRemovedObjectURL);
+    bgRemovedObjectURL = URL.createObjectURL(blob);
+  } catch (error) {
+    console.error("Background removal failed:", error);
+    alert("Background removal failed.");
+    elements.bgRemoveEnable.checked = false;
+    elements.bgControls.classList.add('hidden');
+  } finally {
+    isRemovingBg = false;
+    elements.loadingOverlay.classList.add('hidden');
+  }
+}
+
 async function compressImage() {
   if (!originalFile) return;
 
   elements.loadingOverlay.classList.remove('hidden');
+  
+  if (elements.bgRemoveEnable.checked && !bgRemovedBlob && !isRemovingBg) {
+    await processBackgroundRemoval();
+  }
 
   const quality = parseInt(elements.qualitySlider.value) / 100;
   const targetFormat = elements.formatSelect.value;
@@ -446,7 +533,7 @@ async function compressImage() {
 
   // Create an image object to get dimensions
   const img = new Image();
-  img.src = originalObjectURL;
+  img.src = (elements.bgRemoveEnable.checked && bgRemovedObjectURL) ? bgRemovedObjectURL : originalObjectURL;
 
   await new Promise(resolve => {
     img.onload = resolve;
@@ -461,6 +548,7 @@ async function compressImage() {
     if (unit === '%') return originalDim * (val / 100);
     if (unit === 'in') return val * 96; // Standard web DPI
     if (unit === 'cm') return val * (96 / 2.54);
+    if (unit === 'mm') return val * (96 / 25.4);
     return val;
   };
 
@@ -487,6 +575,41 @@ async function compressImage() {
   elements.compressedDim.textContent = formatDimensionString(width, height, currentUnit, originalDims.width, originalDims.height);
 
   const ctx = canvas.getContext('2d');
+
+  // Background Compositing
+  if (elements.bgRemoveEnable.checked) {
+    const mode = elements.bgMode.value;
+    if (mode === 'color') {
+      ctx.fillStyle = elements.bgColorPicker.value;
+      ctx.fillRect(0, 0, width, height);
+    } else if (mode === 'image' && bgImageFile) {
+      const bgImg = new Image();
+      const bgUrl = URL.createObjectURL(bgImageFile);
+      bgImg.src = bgUrl;
+      await new Promise(resolve => { bgImg.onload = resolve; });
+      
+      const bgAsp = bgImg.width / bgImg.height;
+      const cvAsp = width / height;
+      let drawW, drawH, drawX, drawY;
+      
+      if (bgAsp > cvAsp) {
+        drawH = height;
+        drawW = bgImg.width * (height / bgImg.height);
+        drawX = (width - drawW) / 2;
+        drawY = 0;
+      } else {
+        drawW = width;
+        drawH = bgImg.height * (width / bgImg.width);
+        drawX = 0;
+        drawY = (height - drawH) / 2;
+      }
+      
+      ctx.drawImage(bgImg, drawX, drawY, drawW, drawH);
+      URL.revokeObjectURL(bgUrl);
+    }
+  }
+
+  // Draw Foreground
   ctx.drawImage(img, 0, 0, width, height);
 
   // Apply Text Overlay   
@@ -630,13 +753,19 @@ function resetApp() {
   compressedBlob = null;
   lastCropData = null;
   lastAspectRatio = NaN;
+  bgRemovedBlob = null;
+  bgImageFile = null;
 
   if (originalObjectURL) URL.revokeObjectURL(originalObjectURL);
   if (absoluteOriginalObjectURL) URL.revokeObjectURL(absoluteOriginalObjectURL);
   if (compressedObjectURL) URL.revokeObjectURL(compressedObjectURL);
+  if (bgRemovedObjectURL) URL.revokeObjectURL(bgRemovedObjectURL);
 
   elements.uploadZone.style.display = 'block';
   elements.workspace.classList.add('hidden');
+  elements.bgRemoveEnable.checked = false;
+  elements.bgControls.classList.add('hidden');
+  elements.bgImageName.textContent = '';
 
   elements.originalPreview.src = '';
   elements.compressedPreview.src = '';

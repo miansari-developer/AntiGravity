@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Photon - Next-Gen Image Compressor</title>
+  <title>Photon - 100% Local Image Compression</title>
   <!-- Use Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -42,7 +42,7 @@
         </svg>
       </button>
       <h1 class="glow-text">Photon</h1>
-      <p class="subtitle">Next-Gen Image Compression</p>
+      <p class="subtitle">100% Local • Zero-Upload Image Compression</p>
     </header>
 
     <section class="upload-section" id="upload-zone">
@@ -78,6 +78,7 @@
               <option value="%">%</option>
               <option value="in">in</option>
               <option value="cm">cm</option>
+              <option value="mm">mm</option>
             </select>
           </div>
           <div class="dimensions-row">
@@ -116,6 +117,44 @@
             <option value="image/webp">WebP</option>
             <option value="image/png">PNG (Lossless)</option>
           </select>
+        </div>
+
+        <div class="control-group bg-removal-group glass-card" style="margin-top: 24px; padding: 16px;">
+          <div class="control-header" style="align-items: center; display: flex; justify-content: space-between; margin-bottom: 12px;">
+            <label style="margin: 0; font-weight: 600; color: var(--accent-neon-blue);">Background</label>
+            <div class="toggle-switch">
+              <input type="checkbox" id="bg-remove-enable" hidden>
+              <label for="bg-remove-enable" class="toggle-label"></label>
+            </div>
+          </div>
+          
+          <div class="privacy-badge">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            100% Local & Private
+          </div>
+
+          <div id="bg-controls" class="hidden">
+            <div class="input-wrapper" style="margin-bottom: 12px;">
+              <label for="bg-mode">Fill Mode</label>
+              <select id="bg-mode" class="neon-select">
+                <option value="transparent" selected>Transparent</option>
+                <option value="color">Color</option>
+                <option value="image">Image</option>
+              </select>
+            </div>
+
+            <div id="bg-color-control" class="input-wrapper color-picker-wrapper hidden" style="margin-top: 12px;">
+              <label for="bg-color-picker">Color Fill</label>
+              <input type="color" id="bg-color-picker" value="#000000" class="neon-color-btn">
+            </div>
+
+            <div id="bg-image-control" class="input-wrapper hidden" style="margin-top: 12px;">
+              <label>Image Upload</label>
+              <input type="file" id="bg-image-input" accept="image/*" hidden />
+              <button id="bg-image-btn" class="btn btn-secondary" style="width: 100%; padding: 8px;">Select Image</button>
+              <div id="bg-image-name" style="margin-top: 8px; font-size: 0.8rem; color: var(--text-muted); text-align: center; word-break: break-all;"></div>
+            </div>
+          </div>
         </div>
 
         <div class="control-group text-overlay-group glass-card" style="margin-top: 24px; padding: 16px;">
