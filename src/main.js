@@ -1,6 +1,7 @@
 import Cropper from 'cropperjs';
 import 'cropperjs/dist/cropper.css';
 import { removeBackground } from '@imgly/background-removal';
+import { jsPDF } from 'jspdf';
 
 // State
 let originalFile = null;
@@ -679,25 +680,48 @@ async function compressImage() {
     });
   }
 
-  // Export to blob
-  canvas.toBlob(
-    (blob) => {
-      // Small optimization wait
+    // Export to blob
+    if (targetFormat === 'application/pdf') {
+      const imgData = canvas.toDataURL('image/jpeg', quality);
+      const pdf = new jsPDF({
+        orientation: width > height ? 'l' : 'p',
+        unit: 'px',
+        format: [width, height]
+      });
+      pdf.addImage(imgData, 'JPEG', 0, 0, width, height);
+      const pdfBlob = pdf.output('blob');
+
       setTimeout(() => {
-        compressedBlob = blob;
-
+        compressedBlob = pdfBlob;
         if (compressedObjectURL) URL.revokeObjectURL(compressedObjectURL);
-        compressedObjectURL = URL.createObjectURL(blob);
-
-        elements.compressedPreview.src = compressedObjectURL;
-
+        compressedObjectURL = URL.createObjectURL(pdfBlob);
+        
+        // Preview: use low-res JPEG since <img> can't show PDF
+        elements.compressedPreview.src = canvas.toDataURL('image/jpeg', 0.2);
+        
         updateStats();
         elements.loadingOverlay.classList.add('hidden');
       }, 100);
-    },
-    targetFormat,
-    quality
-  );
+    } else {
+      canvas.toBlob(
+        (blob) => {
+          // Small optimization wait
+          setTimeout(() => {
+            compressedBlob = blob;
+
+            if (compressedObjectURL) URL.revokeObjectURL(compressedObjectURL);
+            compressedObjectURL = URL.createObjectURL(blob);
+
+            elements.compressedPreview.src = compressedObjectURL;
+
+            updateStats();
+            elements.loadingOverlay.classList.add('hidden');
+          }, 100);
+        },
+        targetFormat,
+        quality
+      );
+    }
 }
 
 function updateStats() {
@@ -731,7 +755,8 @@ function downloadCompressedImage() {
   const formatExtMap = {
     'image/jpeg': '.jpg',
     'image/webp': '.webp',
-    'image/png': '.png'
+    'image/png': '.png',
+    'application/pdf': '.pdf'
   };
   const targetFormat = elements.formatSelect.value;
   const ext = formatExtMap[targetFormat] || '.jpg';

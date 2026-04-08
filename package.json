@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@imgly/background-removal": "^1.7.0",
-    "cropperjs": "^1.6.2"
+    "cropperjs": "^1.6.2",
+    "jspdf": "^4.2.1",
+    "jszip": "^3.10.1"
   }
 }
